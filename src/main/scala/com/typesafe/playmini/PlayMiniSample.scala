@@ -21,19 +21,20 @@ import akka.dispatch.{Await, Future}
 object PlayMiniSample extends Application {
   lazy val system = ActorSystem("ShakespeareGenerator")
   lazy val shakespeare = system.actorOf(Props[ShakespeareActor], "shakespeare")
-  private final val UrlPattern = """/write/(\d)""".r
+  private final val UrlPattern = """/write/(\d+)""".r
   implicit val timeout = Timeout(5000 milliseconds)
   
   def route = {
     case GET(Path(UrlPattern(numberActors))) ⇒ Action {
+      val start = System.nanoTime
       AsyncResult {
         (shakespeare ? numberActors.toInt).mapTo[Result].asPromise.map { result ⇒
           // We have the result - make some fancy pantsy presentation of it
           val builder = new StringBuilder
           builder.append("SHAKESPEARE WORDS:\n")
           result.shakespeareMagic.foreach { w => builder.append(w + "\n") }
-          builder.append("UNWORTHY WORDS:\n")
-          result.unworthyWords.foreach { w => builder.append(w + "\n") }
+          builder.append("UNWORTHY WORDS CREATED: " + result.unworthyWords.size + "\n")
+          builder.append("In " + (System.nanoTime - start)/1000 + "us\n")
           Ok(builder.toString)
         }
       }
@@ -53,7 +54,6 @@ class ShakespeareActor extends Actor {
 
   def receive = {
     case actors: Int =>
-
       val futures = for (x <- 1 to actors) yield {
         context.actorOf(Props[Worker]) ? randomGenerator.nextInt(100) mapTo manifest[Set[String]]
       }
