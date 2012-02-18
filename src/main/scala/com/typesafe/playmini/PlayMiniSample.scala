@@ -10,10 +10,10 @@ import annotation.tailrec
 
 import akka.actor.{Props, ActorSystem, Actor}
 import akka.pattern.ask
+import akka.pattern.pipe
 import akka.util.Timeout
 import akka.util.duration._
-import akka.dispatch.{ExecutionContext, Await, Future}
-import java.util.concurrent.Executors
+import akka.dispatch.{Await, Future}
 
 /**
  * Inspiration taken from http://en.wikipedia.org/wiki/Infinite_monkey_theorem
@@ -49,28 +49,20 @@ class ShakespeareActor extends Actor {
   lazy val randomGenerator = new Random
   implicit val timeout = Timeout(5000 milliseconds)
 
+  import context.dispatcher
+
   def receive = {
     case actors: Int =>
-      val es = Executors.newCachedThreadPool()
-      implicit val ec = ExecutionContext.fromExecutorService(es)
 
-      var futures: List[Future[Set[String]]] = List[Future[Set[String]]]()
-      1 to actors foreach { x =>
-        val actor = context.actorOf(Props[Worker])
-        futures ::= (actor ? randomGenerator.nextInt(100)).mapTo[Set[String]]
+      val futures = for (x <- 1 to actors) yield {
+        context.actorOf(Props[Worker]) ? randomGenerator.nextInt(100) mapTo manifest[Set[String]]
       }
 
-      val futuresList = Future.sequence(futures)
-      var words = Await.result(futuresList.map(x => x), 5000 milliseconds).asInstanceOf[List[Set[String]]].head
-
-      // Check if there are any Shakespeareian phrases in the result
-      var shakespeareMagic = Set.empty[String]
-      var unworthyWords = Set.empty[String]
-      for (word <- words) if (Blueprint.contains(word)) shakespeareMagic += word else unworthyWords += word
-
-      es.shutdown
-
-      sender ! Result(shakespeareMagic, unworthyWords)
+      Future.sequence(futures) map { wordSets =>
+        val mergedSet = wordSets reduce ( (a, b) => a ++ b )
+        val (shakespeare, unworthy) = mergedSet partition (x => Blueprint.contains(x))
+        Result(shakespeare, unworthy)
+      } pipeTo sender
   }
 }
 
