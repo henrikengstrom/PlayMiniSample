@@ -1,6 +1,5 @@
 package com.typesafe.playmini
 
-import com.typesafe.play.mini.{Path, GET, Application}
 import play.api.mvc.{Action, AsyncResult}
 import play.api.mvc.Results._
 import play.api.libs.concurrent._
@@ -14,6 +13,9 @@ import akka.pattern.pipe
 import akka.util.Timeout
 import akka.util.duration._
 import akka.dispatch.{Await, Future}
+import com.typesafe.play.mini.{POST, Path, GET, Application}
+import play.api.data.Form
+import play.api.data.Forms._
 
 /**
  * Inspiration taken from http://en.wikipedia.org/wiki/Infinite_monkey_theorem
@@ -21,16 +23,16 @@ import akka.dispatch.{Await, Future}
 object PlayMiniSample extends Application {
   lazy val system = ActorSystem("ShakespeareGenerator")
   lazy val shakespeare = system.actorOf(Props[ShakespeareActor], "shakespeare")
-  private final val UrlPattern = """/write/(\d+)""".r
   implicit val timeout = Timeout(5000 milliseconds)
   
   def route = {
     case GET(Path("/ping")) => Action { Ok("Pong @ %s\n".format(System.currentTimeMillis)) }
-    case GET(Path(UrlPattern(numberActors))) ⇒ Action {
+    case POST(Path("/write")) ⇒ Action { implicit request =>
       val start = System.nanoTime
+      val numberMonkeys = monkeysForm.bindFromRequest.get
       AsyncResult {
-        (shakespeare ? numberActors.toInt).mapTo[Result].asPromise.map { result ⇒
-          // We have the result - make some fancy pantsy presentation of it
+        (shakespeare ? numberMonkeys).mapTo[Result].asPromise.map { result ⇒
+          // We have a result - make some fancy pantsy presentation of it
           val builder = new StringBuilder
           builder.append("SHAKESPEARE WORDS:\n")
           result.shakespeareMagic.foreach { w => builder.append(w + "\n") }
@@ -41,6 +43,8 @@ object PlayMiniSample extends Application {
       }
     }
   }
+
+  val monkeysForm = Form("number" -> number(min = 1))
 }
 
 case class Result(shakespeareMagic: Set[String], unworthyWords: Set[String])
