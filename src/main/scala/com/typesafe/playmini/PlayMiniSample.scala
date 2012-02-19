@@ -29,7 +29,7 @@ object PlayMiniSample extends Application {
     case GET(Path("/ping")) => Action { Ok("Pong @ %s\n".format(System.currentTimeMillis)) }
     case POST(Path("/write")) ⇒ Action { implicit request =>
       val start = System.nanoTime
-      val numberMonkeys = monkeysForm.bindFromRequest.get
+      val numberMonkeys = writeForm.bindFromRequest.get
       AsyncResult {
         (shakespeare ? numberMonkeys).mapTo[Result].asPromise.map { result ⇒
           // We have a result - make some fancy pantsy presentation of it
@@ -44,7 +44,7 @@ object PlayMiniSample extends Application {
     }
   }
 
-  val monkeysForm = Form("number" -> number(min = 1))
+  val writeForm = Form("number" -> number(min = 1))
 }
 
 case class Result(shakespeareMagic: Set[String], unworthyWords: Set[String])
