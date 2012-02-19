@@ -25,6 +25,7 @@ object PlayMiniSample extends Application {
   implicit val timeout = Timeout(5000 milliseconds)
   
   def route = {
+    case GET(Path("/ping")) => Action { Ok("Pong @ %s\n".format(System.currentTimeMillis)) }
     case GET(Path(UrlPattern(numberActors))) ⇒ Action {
       val start = System.nanoTime
       AsyncResult {
@@ -55,7 +56,7 @@ class ShakespeareActor extends Actor {
   def receive = {
     case actors: Int =>
       val futures = for (x <- 1 to actors) yield {
-        context.actorOf(Props[Worker]) ? randomGenerator.nextInt(100) mapTo manifest[Set[String]]
+        context.actorOf(Props[MonkeyWorker]) ? randomGenerator.nextInt(100) mapTo manifest[Set[String]]
       }
 
       Future.sequence(futures) map { wordSets =>
@@ -67,10 +68,10 @@ class ShakespeareActor extends Actor {
 }
 
 object ShakespeareActor {
-  lazy val Blueprint = Set("to", "be", "or", "not", "to")
+  lazy val Blueprint = Set("to", "be", "or", "not")
 }
 
-class Worker extends Actor {
+class MonkeyWorker extends Actor {
   import WorkerActor._
 
   lazy val randomGenerator = new Random
